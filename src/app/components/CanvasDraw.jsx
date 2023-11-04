@@ -5,14 +5,14 @@ import rough from "roughjs/bundled/rough.esm";
 const generator = rough.generator(); // generator instance for roughjs library to generate shapes on canvas
 
 // function to create element to draw on canvas
-const createDrawElement = (x1, y1, x2, y2, elementType) => {
+const createDrawElement = (id, x1, y1, x2, y2, elementType) => {
   let roughElement;
   if (elementType === "line") {
     roughElement = generator.line(x1, y1, x2, y2);
   } else if (elementType === "rectengle") {
     roughElement = generator.rectangle(x1, y1, x2 - x1, y2 - y1);
   }
-  return { x1, y1, x2, y2, elementType, roughElement };
+  return { id, x1, y1, x2, y2, elementType, roughElement };
 };
 
 // function to get distance between two points using pythagoras theorem
@@ -40,7 +40,7 @@ const isWithenElement = (x, y, element) => {
 
 // function to get element at position x and y
 const getElementPosition = (x, y, elements) => {
-  return elements.find(element => isWithenElement(x, y, element));
+  return elements.find((element) => isWithenElement(x, y, element));
 };
 
 /* ------------------------ */
@@ -57,24 +57,37 @@ const CanvasDraw = () => {
     // set canvas width and height on window resize
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
     // draw shapes on canvas using roughjs
     const rc = rough.canvas(canvas);
-
     elements.forEach(({ roughElement }) => rc.draw(roughElement));
   }, [elements]);
+
+  // function to update element in elements array
+  const updateElement = (id, x1, y1, x2, y2, type) => {
+    const updatedElement = createDrawElement(id, x1, y1, x2, y2, type);
+    const elementsCopy = [...elements];
+    elementsCopy[id] = updatedElement;
+    setElements(elementsCopy);
+  };
 
   //function to handle mouse down event on canvas
   const handleMouseDown = (e) => {
     const { clientX, clientY } = e;
     if (elementType === "select") {
       const element = getElementPosition(clientX, clientY, elements);
-      console.log(element);
+      // console.log(element);
       if (element) {
-        setSelectedElement(element);
+        const offsetX = clientX - element.x1;
+        const offsetY = clientY - element.y1;
+        setSelectedElement({ ...element, offsetX, offsetY });
         setAction("moving");
       }
     } else {
+      const id = elements.length;
       const element = createDrawElement(
+        id,
         clientX,
         clientY,
         clientX,
@@ -89,28 +102,26 @@ const CanvasDraw = () => {
 
   // function to handle mouse move event on canvas
   const handleMouseMove = (e) => {
-    if (action !== "drawing") {
-      return;
+    const { clientX, clientY } = e;
+    if (action === "drawing") {
+      // get clientX and clientY from event and update last element in elements array with updated x2 and y2 values //
+      const index = elements.length - 1; // get index of last element from elements array
+      const { x1, y1 } = elements[index]; // get x1 and y1 from last element
+      updateElement(index, x1, y1, clientX, clientY, elementType); // create updated element
+    } else if (action === "moving") {
+      const { id, x1, x2, y1, y2, type, offsetX, offsetY } = selectedElement;
+      const width = x2 - x1;
+      const height = y2 - y1;
+      const newX1 = clientX - offsetX;
+      const newY1 = clientY - offsetY;
+      updateElement(id, newX1, newY1, newX1 + width, newY1 + height, type);
     }
-    // get clientX and clientY from event and update last element in elements array with updated x2 and y2 values //
-    const { clientX, clientY } = e; // get clientX and clientY from event
-    const index = elements.length - 1; // get index of last element from elements array
-    const { x1, y1 } = elements[index]; // get x1 and y1 from last element
-    const updatedElement = createDrawElement(
-      x1,
-      y1,
-      clientX,
-      clientY,
-      elementType
-    ); // create updated element
-    const elementsCopy = [...elements]; // create copy of elements array
-    elementsCopy[index] = updatedElement; // update element at index
-    setElements(elementsCopy); // set elements array with updated element
   };
 
   //function to handle mouse up event on canvas
   const handleMouseUp = (e) => {
     setAction("none");
+    setSelectedElement(null);
   };
 
   /*----- return canvas element to draw shapes on canvas--------- */
